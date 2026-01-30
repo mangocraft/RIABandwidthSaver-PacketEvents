@@ -132,36 +132,23 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
             
             UUID uuid = player.getUniqueId();
             
-            // Handle unfilitered statistics if enabled
+            // Handle unfiltered statistics if enabled - READ PACKET SIZE IN MAIN THREAD BEFORE ANY CANCELLATIONS
             if (calcAllPackets) {
-                CompletableFuture.runAsync(() -> {
-                    long packetSize = getPacketSizeFromEvent(event);
-                    Object packetType = event.getPacketType();
-                    
-                    UNFILTERED_PKT_TYPE_STATS.compute(packetType, (k, v) -> {
-                        if (v == null) {
-                            v = new PacketInfo();
-                        }
-                        v.getPktCounter().increment();
-                        v.getPktSize().add(packetSize);
-                        return v;
-                    });
-                    
-                    UNFILTERED_PLAYER_PKT_SAVED_STATS.compute(uuid, (k, v) -> {
-                        if (v == null) {
-                            v = new PacketInfo();
-                        }
-                        v.getPktCounter().increment();
-                        v.getPktSize().add(packetSize);
-                        return v;
-                    });
-                }, EXECUTOR_SERVICE);
+                long packetSize = getPacketSizeFromEvent(event); // Read in main thread before cancellation
+                Object packetType = event.getPacketType();
+                
+                // Use LongAdder directly for high concurrency performance
+                UNFILTERED_PKT_TYPE_STATS.computeIfAbsent(packetType, k -> new PacketInfo()).addValues(1, packetSize);
+                UNFILTERED_PLAYER_PKT_SAVED_STATS.computeIfAbsent(uuid, k -> new PacketInfo()).addValues(1, packetSize);
             }
             
             // Check if player is AFK
             if (!AFK_PLAYERS.contains(uuid)) {
                 return;
             }
+            
+            // READ PACKET SIZE IN MAIN THREAD BEFORE CANCELLATION - CRITICAL FOR BYTEBUF LIFECYCLE
+            long packetSize = getPacketSizeFromEvent(event); // Read in main thread before cancellation
             
             // --- ✅ 修正开始：使用 PacketType 枚举对比 ---
             com.github.retrooper.packetevents.protocol.packettype.PacketTypeCommon type = event.getPacketType();
@@ -182,7 +169,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.PLAYER_INFO_UPDATE) {
                 
                 event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+                handleCancelledPacketWithSize(event, uuid, packetSize);
                 return;
             }
 
@@ -193,7 +180,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                 // 使用正确的方法名
                 if (statusWrapper.getStatus() == 2) { // 2 代表受伤变红
                     event.setCancelled(true);
-                    handleCancelledPacket(event, uuid);
+                    handleCancelledPacketWithSize(event, uuid, packetSize);
                 }
                 return;
             }
@@ -210,7 +197,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                     return;
                 }
                 event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+                handleCancelledPacketWithSize(event, uuid, packetSize);
                 return;
             }
 
@@ -220,7 +207,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                     return;
                 }
                 event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+                handleCancelledPacketWithSize(event, uuid, packetSize);
                 return;
             }
 
@@ -230,7 +217,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                     return;
                 }
                 event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+                handleCancelledPacketWithSize(event, uuid, packetSize);
                 return;
             }
 
@@ -240,7 +227,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                     return;
                 }
                 event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+                handleCancelledPacketWithSize(event, uuid, packetSize);
                 return;
             }
             
@@ -250,7 +237,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                     return;
                 }
                 event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+                handleCancelledPacketWithSize(event, uuid, packetSize);
                 return;
             }
 
@@ -258,7 +245,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
             if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BLOCK_ACTION) {
                 if (!shouldAllowBlockActionPacket(event, uuid)) {
                     event.setCancelled(true);
-                    handleCancelledPacket(event, uuid);
+                    handleCancelledPacketWithSize(event, uuid, packetSize);
                 }
                 return;
             }
@@ -355,29 +342,18 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
     }
     
     private void handleCancelledPacket(PacketSendEvent event, UUID uuid) {
-        // Process cancelled packet statistics asynchronously
-        CompletableFuture.runAsync(() -> {
-            long packetSize = getPacketSizeFromEvent(event);
-            Object packetType = event.getPacketType();
-            
-            PKT_TYPE_STATS.compute(packetType, (k, v) -> {
-                if (v == null) {
-                    v = new PacketInfo();
-                }
-                v.getPktCounter().increment();
-                v.getPktSize().add(packetSize);
-                return v;
-            });
-            
-            PLAYER_PKT_SAVED_STATS.compute(uuid, (k, v) -> {
-                if (v == null) {
-                    v = new PacketInfo();
-                }
-                v.getPktCounter().increment();
-                v.getPktSize().add(packetSize);
-                return v;
-            });
-        }, EXECUTOR_SERVICE);
+        // For backward compatibility - read packet size in this method
+        long packetSize = getPacketSizeFromEvent(event);
+        handleCancelledPacketWithSize(event, uuid, packetSize);
+    }
+    
+    private void handleCancelledPacketWithSize(PacketSendEvent event, UUID uuid, long packetSize) {
+        // Process cancelled packet statistics using LongAdder directly for high concurrency
+        Object packetType = event.getPacketType();
+        
+        // Use computeIfAbsent with LongAdder's add() method for better performance on Folia
+        PKT_TYPE_STATS.computeIfAbsent(packetType, k -> new PacketInfo()).addValues(1, packetSize);
+        PLAYER_PKT_SAVED_STATS.computeIfAbsent(uuid, k -> new PacketInfo()).addValues(1, packetSize);
     }
     
     private long getPacketSizeFromEvent(PacketSendEvent event) {

@@ -21,6 +21,16 @@ public class PacketInfo implements Comparable<PacketInfo>{
         return pktSize;
     }
 
+    /**
+     * Add values to both counters atomically for high concurrency performance
+     * @param count number of packets to add
+     * @param size size of packets to add
+     */
+    public void addValues(long count, long size) {
+        this.pktCounter.add(count);
+        this.pktSize.add(size);
+    }
+
     @Override
     public int compareTo(@NotNull PacketInfo o) {
         return Long.compare(this.pktSize.longValue(), o.pktSize.longValue());
