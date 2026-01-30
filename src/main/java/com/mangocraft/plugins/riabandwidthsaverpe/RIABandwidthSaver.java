@@ -163,157 +163,114 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                 return;
             }
             
-            // Handle specific packet types for AFK players
-            String packetName = event.getPacketType().getName();
-            if (packetName.contains("ENTITY_ANIMATION")) {
+            // --- ✅ 修正开始：使用 PacketType 枚举对比 ---
+            com.github.retrooper.packetevents.protocol.packettype.PacketTypeCommon type = event.getPacketType();
+
+            // 1. 完全取消的数据包 (直接列出 PacketType)
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_ANIMATION ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BLOCK_BREAK_ANIMATION ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.SOUND_EFFECT ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_SOUND_EFFECT || // 注意：Named Sound 和 Entity Sound
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.PARTICLE ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.EXPLOSION ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_HEAD_LOOK || // 修正：是 HEAD_LOOK 不是 HEAD_ROTATION
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.DAMAGE_EVENT ||     // 1.19.4+
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.PLAYER_LIST_HEADER_AND_FOOTER || // 修正名称
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_EFFECT ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.MAP_DATA ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.UPDATE_ATTRIBUTES ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.PLAYER_INFO_UPDATE) {
+                
                 event.setCancelled(true);
                 handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("BLOCK_BREAK_ANIMATION")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("SOUND_EFFECT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("NAMED_SOUND_EFFECT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("PARTICLE")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("EXPLOSION")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("UPDATE_TIME")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_HEAD_ROTATION")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("HURT_ANIMATION")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("DAMAGE_EVENT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_LOOK") || packetName.contains("ENTITY_TELEPORT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_POSITION_SYNC")) {
-                // Apply fixed low probability filter for entity position sync packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
+                return;
+            }
+
+            // 2. 特殊处理：受伤动画 (EntityStatus)
+            // 原代码中的 "HURT_ANIMATION" 是无效的
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_STATUS) {
+                com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityStatus statusWrapper = new com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityStatus(event);
+                // 使用正确的方法名
+                if (statusWrapper.getStatus() == 2) { // 2 代表受伤变红
+                    event.setCancelled(true);
+                    handleCancelledPacket(event, uuid);
+                }
+                return;
+            }
+
+            // 3. 概率过滤的数据包
+            // 实体移动类 (修正了名称)
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_RELATIVE_MOVE ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_RELATIVE_MOVE_AND_ROTATION ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_ROTATION || // 原代码的 ENTITY_LOOK
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_TELEPORT || // 替换 ENTITY_POSITION_SYNC
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_VELOCITY) {
+                
+                if (RANDOM.nextDouble() < 0.02) { // 2% 放行
+                    return;
                 }
                 event.setCancelled(true);
                 handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_RELATIVE_MOVE")) {
-                // Apply fixed low probability filter for entity move packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
+                return;
+            }
+
+            // 载具移动
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.VEHICLE_MOVE) {
+                if (RANDOM.nextInt(3) > 0) { // 33% 放行
+                    return;
                 }
                 event.setCancelled(true);
                 handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_RELATIVE_MOVE_AND_ROTATION")) {
-                // Apply fixed low probability filter for entity move and rotation packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
+                return;
+            }
+
+            // 实体生成 (保持可见性)
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.SPAWN_ENTITY) {
+                if (RANDOM.nextInt(2) > 0) {
+                    return;
                 }
                 event.setCancelled(true);
                 handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_VELOCITY")) {
-                // Apply fixed low probability filter for velocity packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
+                return;
+            }
+
+            // 头部旋转
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_HEAD_LOOK) {
+                if (RANDOM.nextDouble() < 0.20) {
+                    return;
                 }
                 event.setCancelled(true);
                 handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("REL_ENTITY_MOVE")) {
-                // Apply fixed low probability filter for relative entity move packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
+                return;
+            }
+            
+            // 元数据更新
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_METADATA) {
+                 if (RANDOM.nextDouble() < 0.05) {
+                    return;
                 }
                 event.setCancelled(true);
                 handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("REL_ENTITY_MOVE_LOOK")) {
-                // Apply fixed low probability filter for relative entity move look packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
+                return;
+            }
+
+            // 4. 需要复杂逻辑判断的包 (Block Action / Change)
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BLOCK_ACTION) {
+                if (!shouldAllowBlockActionPacket(event, uuid)) {
+                    event.setCancelled(true);
+                    handleCancelledPacket(event, uuid);
                 }
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("SPAWN_ENTITY_EXPERIENCE_ORB")) {
-                // Apply fixed low probability filter for spawn entity experience orb packets
-                if (RANDOM.nextDouble() < 0.02) { // 2% pass rate
-                    return; // Don't cancel, allow through
-                }
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("VEHICLE_MOVE")) {
-                // Apply probability filter for vehicle move packets
-                if (RANDOM.nextInt(3) > 0) {
-                    return; // Don't cancel, allow through
-                }
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("SPAWN_ENTITY")) {
-                // Allow spawn entity packets to maintain entity visibility - fixes mob visibility issue
-                if (RANDOM.nextInt(2) > 0) { // 50% chance to allow through
-                    return; // Don't cancel, allow through
-                }
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("BLOCK_ACTION")) {
-                // 不再过滤BLOCK_ACTION数据包，直接允许通过 - 解决过多bug问题
-                return; // Don't cancel, allow through
-            } else if (packetName.contains("LIGHT_UPDATE")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("UPDATE_LIGHT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("LOOK_AT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("PLAYER_LIST_HEADER_FOOTER")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("WORLD_EVENT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("COLLECT_ITEM")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_HEAD_LOOK")) {
-                // Apply fixed probability filter for entity head look packets
-                if (RANDOM.nextDouble() < 0.20) { // 20% pass rate
-                    return; // Don't cancel, allow through
-                }
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_METADATA")) {
-                // Apply fixed low probability filter for entity metadata packets
-                if (RANDOM.nextDouble() < 0.05) { // 5% pass rate
-                    return; // Don't cancel, allow through
-                }
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("ENTITY_EFFECT")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("MAP_DATA")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("MULTI_BLOCK_CHANGE")) {
-                // MULTI_BLOCK_CHANGE: 全部通过，不进行拦截 - 避免方块状态同步问题
-                return; // Don't cancel, allow through
-            } else if (packetName.contains("BLOCK_CHANGE")) {
+                return;
+            }
+
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BLOCK_CHANGE) {
                 // 不再过滤BLOCK_CHANGE数据包，直接允许通过 - 解决过多bug问题
                 return; // Don't cancel, allow through
-            } else if (packetName.contains("UPDATE_ATTRIBUTES")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
-            } else if (packetName.contains("PLAYER_INFO_UPDATE")) {
-                event.setCancelled(true);
-                handleCancelledPacket(event, uuid);
+            }
+
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.MULTI_BLOCK_CHANGE) {
+                // MULTI_BLOCK_CHANGE: 全部通过，不进行拦截 - 避免方块状态同步问题
+                return; // Don't cancel, allow through
             }
         }
 
