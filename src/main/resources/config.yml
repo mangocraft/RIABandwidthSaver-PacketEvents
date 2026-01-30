@@ -1,0 +1,10 @@
+# 计算所有数据包（即启用 /riabandwidthsaver unfiltered 的统计信息）
+calcAllPackets: true
+modifyPlayerViewDistance: false
+# 视角检测AFK阈值（秒），默认为 300 秒（5分钟）
+afkPerspectiveThresholdSeconds: 300
+# 调试模式开关，开启后会在控制台输出智能过滤区域信息
+debug: false
+message:
+  playerEcoEnable: '§a🍃 ECO 节能模式已启用，限制数据传输，可能会看着卡顿，实际正常，不会影响机器运行'
+  playerEcoDisable: '§8🍃 ECO 节能模式已停用，数据传输将恢复正常'
