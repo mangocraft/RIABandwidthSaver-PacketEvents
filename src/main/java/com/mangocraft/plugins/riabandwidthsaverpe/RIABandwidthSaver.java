@@ -167,6 +167,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.MAP_DATA ||
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.UPDATE_ATTRIBUTES ||
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.PLAYER_INFO_UPDATE ||
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.UPDATE_LIGHT || // 🔥 必杀技1: 光照更新 - 节省大量流量
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BOSS_BAR) { // 🛡️ 必杀技3: Boss栏 - AFK玩家不需要看到公告
                 
                 event.setCancelled(true);
