@@ -80,7 +80,6 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
     private io.papermc.paper.threadedregions.scheduler.ScheduledTask afkCheckTask = null;
 
     private com.github.retrooper.packetevents.PacketEventsAPI packetEventsAPI;
-    private ChunkDataFilter chunkDataFilter;
 
     @Override
     public void onEnable() {
@@ -95,9 +94,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                 .bStats(true);
         packetEventsAPI.load();
         
-        // Initialize ChunkDataFilter
-        chunkDataFilter = ChunkDataFilter.getInstance();
-        chunkDataFilter.registerListener();
+
         
         // Register packet listener
         packetEventsAPI.getEventManager().registerListener(new BandwidthSaverListener());
@@ -379,9 +376,6 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                     player.setSendViewDistance(8);
                 }
         AFK_PLAYERS.add(player.getUniqueId());
-        if (chunkDataFilter != null) {
-            chunkDataFilter.addAfkPlayer(player.getUniqueId());
-        }
         
         // Log AFK entry to console
         getLogger().info("Player " + player.getName() + " (" + player.getUniqueId() + ") entered AFK mode");
@@ -396,9 +390,6 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
         String message = getConfig().getString("message.playerEcoDisable", "");
         if(!message.isEmpty()){
             player.sendMessage(message);
-        }
-        if (chunkDataFilter != null) {
-            chunkDataFilter.removeAfkPlayer(player.getUniqueId());
         }
         
         // Log AFK exit to console
@@ -655,11 +646,6 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
         } catch (InterruptedException e) {
             EXECUTOR_SERVICE.shutdownNow();
             Thread.currentThread().interrupt();
-        }
-        
-        // Terminate ChunkDataFilter
-        if (chunkDataFilter != null) {
-            chunkDataFilter.unregisterListener();
         }
         
         // Terminate PacketEvents
