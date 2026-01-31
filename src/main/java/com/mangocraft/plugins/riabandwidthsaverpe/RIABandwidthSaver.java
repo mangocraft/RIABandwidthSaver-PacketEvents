@@ -40,7 +40,7 @@ import java.util.stream.Stream;
 
 public final class RIABandwidthSaver extends JavaPlugin implements Listener {
     // 视角AFK检测相关数据结构
-    private final Set<UUID> AFK_PLAYERS = new HashSet<>();
+    private final Set<UUID> AFK_PLAYERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Map<UUID, Float> LAST_YAW = new ConcurrentHashMap<>(); // 记录玩家最后的yaw（左右视角）
     private final Map<UUID, Float> LAST_PITCH = new ConcurrentHashMap<>(); // 记录玩家最后的pitch（上下视角）
     private final Map<UUID, Long> LAST_HEAD_MOVEMENT_TIME = new ConcurrentHashMap<>(); // 记录最后头部移动时间
@@ -415,8 +415,14 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
 
         // 使用PacketEvents发送BossBar数据包
         try {
+            // 从配置文件获取BossBar参数
+            String titleText = getConfig().getString("bossbar.eco-enabled-title", "<green><bold>🍃 ECO 节能模式</bold> <gray>|</gray> <yellow>⬇ 已暂停高频数据传输</yellow> <gray>|</gray> <white>↔ 轻晃视角以恢复</white>");
+            float health = (float) getConfig().getDouble("bossbar.eco-enabled-health", 1.0);
+            String colorStr = getConfig().getString("bossbar.eco-enabled-color", "YELLOW");
+            String overlayStr = getConfig().getString("bossbar.eco-enabled-overlay", "PROGRESS");
+            
             // 构建BossBar标题组件
-            Component title = MiniMessage.miniMessage().deserialize("<green><bold>🍃 ECO 节能模式</bold> <gray>|</gray> <yellow>⬇ 已暂停高频数据传输</yellow> <gray>|</gray> <white>↔ 轻晃视角以恢复</white>");
+            Component title = MiniMessage.miniMessage().deserialize(titleText);
             
             // 创建ADD类型的BossBar包
             WrapperPlayServerBossBar bossBarPacket = new WrapperPlayServerBossBar(
@@ -426,9 +432,28 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
             
             // 设置BossBar属性
             bossBarPacket.setTitle(title);
-            bossBarPacket.setHealth(1.0f); // 进度：1.0 (满血)
-            bossBarPacket.setColor(net.kyori.adventure.bossbar.BossBar.Color.YELLOW); // 颜色：黄色
-            bossBarPacket.setOverlay(net.kyori.adventure.bossbar.BossBar.Overlay.PROGRESS); // 样式：PROGRESS
+            bossBarPacket.setHealth(health);
+            
+            // 根据配置设置颜色
+            net.kyori.adventure.bossbar.BossBar.Color color;
+            try {
+                color = net.kyori.adventure.bossbar.BossBar.Color.valueOf(colorStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                getLogger().warning("Invalid bossbar color: " + colorStr + ", using YELLOW as default.");
+                color = net.kyori.adventure.bossbar.BossBar.Color.YELLOW;
+            }
+            
+            // 根据配置设置样式
+            net.kyori.adventure.bossbar.BossBar.Overlay overlay;
+            try {
+                overlay = net.kyori.adventure.bossbar.BossBar.Overlay.valueOf(overlayStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                getLogger().warning("Invalid bossbar overlay: " + overlayStr + ", using PROGRESS as default.");
+                overlay = net.kyori.adventure.bossbar.BossBar.Overlay.PROGRESS;
+            }
+            
+            bossBarPacket.setColor(color);
+            bossBarPacket.setOverlay(overlay);
             
             // 发送BossBar数据包给玩家
             PacketEvents.getAPI().getPlayerManager().sendPacket(player, bossBarPacket);
@@ -436,11 +461,15 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
             getLogger().warning("Failed to send ECO BossBar to player " + player.getName() + ": " + e.getMessage());
         }
 
-        // 标记玩家为AFK（必须在发送BossBar之后，否则BossBar会被拦截）
-        AFK_PLAYERS.add(player.getUniqueId());
-
-        // Log AFK entry to console
-        getLogger().info("Player " + player.getName() + " (" + player.getUniqueId() + ") entered AFK mode");
+        // 使用延迟调度器添加AFK标记，避免竞态条件
+        // 确保BossBar数据包先通过监听器（此时玩家尚未被标记为AFK，监听器会直接return放行）
+        // 然后再将玩家标记为AFK
+        player.getScheduler().runDelayed(this, (task) -> {
+            if (player.isOnline()) {
+                AFK_PLAYERS.add(player.getUniqueId());
+                getLogger().info("Player " + player.getName() + " (" + player.getUniqueId() + ") entered AFK mode");
+            }
+        }, null, 1L);
     }
 
     public void playerEcoDisable(Player player) {
