@@ -407,7 +407,6 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
         if(getConfig().getBoolean("modifyPlayerViewDistance")) {
                     player.setSendViewDistance(8);
                 }
-        AFK_PLAYERS.add(player.getUniqueId());
         
         // 创建ECO模式BossBar提示
         UUID playerUuid = player.getUniqueId();
@@ -436,6 +435,9 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
         } catch (Exception e) {
             getLogger().warning("Failed to send ECO BossBar to player " + player.getName() + ": " + e.getMessage());
         }
+
+        // 标记玩家为AFK（必须在发送BossBar之后，否则BossBar会被拦截）
+        AFK_PLAYERS.add(player.getUniqueId());
 
         // Log AFK entry to console
         getLogger().info("Player " + player.getName() + " (" + player.getUniqueId() + ") entered AFK mode");
