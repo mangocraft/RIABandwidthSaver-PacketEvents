@@ -170,8 +170,8 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.MAP_DATA ||
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.UPDATE_ATTRIBUTES ||
                 type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.PLAYER_INFO_UPDATE ||
-                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.UPDATE_LIGHT || // 🔥 必杀技1: 光照更新 - 节省大量流量
-                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_TELEPORT) { // 🚀 必杀技2: 实体传送 - 全部拦截ENTITY_TELEPORT
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.UPDATE_LIGHT || // 光照更新 - 节省大量流量
+                type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.ENTITY_TELEPORT) { // 实体传送 - 全部拦截ENTITY_TELEPORT
                 
                 event.setCancelled(true);
                 handleCancelledPacketWithSize(event, uuid, packetSize);
@@ -179,7 +179,7 @@ public final class RIABandwidthSaver extends JavaPlugin implements Listener {
             }
             
             // 特殊处理：BOSS_BAR - 实现白名单机制
-            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BOSS_BAR) { // 🛡️ 必杀技3: Boss栏 - 但现在使用白名单机制
+            if (type == com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Server.BOSS_BAR) { // Boss栏 - 但现在使用白名单机制
                 try {
                     // 解析包获取 packetUuid
                     WrapperPlayServerBossBar bossBarWrapper = new WrapperPlayServerBossBar(event);
